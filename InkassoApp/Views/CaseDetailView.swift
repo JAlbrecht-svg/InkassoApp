@@ -1,52 +1,95 @@
 import SwiftUI
 
 struct CaseDetailView: View {
-    // ... (@StateObject, init etc. wie zuvor) ...
+    // --- EIGENSCHAFTEN (DIREKT INNERHALB STRUCT, AUSSERHALB BODY) ---
+    @StateObject private var viewModel: CaseDetailViewModel
+    // 'private' ist hier korrekt. 'weak' ist bei ObservableObject nicht üblich,
+    // wenn keine Zyklen drohen, aber schadet hier nicht.
+    private weak var caseListViewModel: CaseListViewModel?
+    let caseToLoad: Case
+    // --- ENDE EIGENSCHAFTEN ---
 
-    var body: some View {
-        ScrollView {
-            Form {
-                // ... (Andere Sektionen: basicInfo, auftrag, amounts etc. wie zuvor) ...
-
-                // --- DEBTOR SECTION mit korrektem NavigationLink ---
-                 @ViewBuilder
-                 private func debtorSection(caseItem: Case) -> some View {
-                    Section("Schuldner") {
-                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 15, verticalSpacing: 8) {
-                             GridRow {
-                                 Text("Name:")
-                                 // --- KORREKTER NAVIGATION LINK ---
-                                 // Übergibt die debtorId (String) als Wert
-                                 NavigationLink(value: caseItem.debtorId) {
-                                     Text(caseItem.debtorName ?? caseItem.debtorId)
-                                         .fontWeight(.medium)
-                                         .foregroundColor(.accentColor) // Macht es wie einen Link aussehen
-                                         // .underline() // Optional
-                                 }
-                                 .buttonStyle(.plain) // Wichtig für korrekten Look
-                                 // --- ENDE KORREKTUR ---
-                             }
-                             if caseItem.addressStreet != nil || caseItem.addressCity != nil {
-                                 GridRow(alignment: .top) { Text("Adresse:"); Text("\(caseItem.addressStreet ?? "")\n\(caseItem.addressZip ?? "") \(caseItem.addressCity ?? "")").textSelection(.enabled) }
-                             } else {
-                                 GridRow { Text("Adresse:"); Text("(Nicht verfügbar)").foregroundColor(.secondary) }
-                             }
-                         }
-                    }
-                }
-                // --- ENDE DEBTOR SECTION ---
-
-                // ... (Andere Sektionen: status, paymentPlan, payments, actions etc. wie zuvor) ...
-
-            } // Ende Form
-            .padding()
-        }
-        // ... (Rest der View: task, sheets, alert, toolbar, statusColor etc. wie zuvor) ...
+    // Initialisierer (Direkt innerhalb Struct)
+    init(listViewModel: CaseListViewModel?, caseToLoad: Case) {
+        self.caseListViewModel = listViewModel
+        self.caseToLoad = caseToLoad
+        // Erstelle das StateObject *hier*
+        _viewModel = StateObject(wrappedValue: CaseDetailViewModel(listViewModel: listViewModel))
     }
-    // ... (Alle anderen @ViewBuilder Section-Funktionen wie zuvor) ...
-}
+
+    // Body (Computed Property)
+    var body: some View {
+        // --- KORREKTE STRUKTUR BEGINNT HIER ---
+        ScrollView { // Äußerste View
+            Form { // Form innerhalb ScrollView
+                // Bedingte Anzeige basierend auf ViewModel-Status
+                if viewModel.isLoading && viewModel.caseItem == nil {
+                    HStack { Spacer(); ProgressView("Lade Fall Details..."); Spacer() }
+                        .padding(.vertical, 50)
+                } else if let error = viewModel.errorMessage, viewModel.showingAlert, viewModel.caseItem == nil {
+                    // Fehleranzeige
+                    VStack(spacing: 15) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .resizable().scaledToFit().frame(width: 50, height: 50)
+                            .foregroundColor(.red).padding(.bottom)
+                        Text("Fehler beim Laden").font(.title2).padding(.bottom, 5)
+                        Text(error).foregroundColor(.red).multilineTextAlignment(.center)
+                        Button("Erneut versuchen") {
+                            Task { await viewModel.loadCaseDetails(caseId: caseToLoad.id) }
+                        }
+                        .padding(.top)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+
+                } else if let caseItem = viewModel.caseItem {
+                    // Hauptinhalt mit Sektionen
+                    basicInfoSection(caseItem: caseItem)
+                    auftragSection(caseItem: caseItem)
+                    debtorSection(caseItem: caseItem)
+                    amountsSection(caseItem: caseItem)
+                    statusSection(caseItem: caseItem)
+                    paymentPlanSection(caseItem: caseItem)
+                    paymentsSection(caseItem: caseItem)
+                    actionsSection(caseItem: caseItem)
+
+                } else {
+                     Text("Fallinformationen nicht verfügbar oder werden geladen...")
+                         .foregroundColor(.secondary)
+                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                         .padding()
+                }
+            } // Ende Form
+            .padding() // Außenpadding für Form
+        } // Ende ScrollView
+        // Modifier für den Haupt-Container (ScrollView)
+        .navigationTitle("Fall: \(caseToLoad.caseReference)")
+        .task { if viewModel.caseItem == nil || viewModel.caseItem?.id != caseToLoad.id { await viewModel.loadCaseDetails(caseId: caseToLoad.id) } }
+        .sheet(isPresented: $viewModel.showingAddPaymentSheet) { /* ... Sheet Payment ... */ }
+        .sheet(isPresented: $viewModel.showingAddActionSheet) { /* ... Sheet Action ... */ }
+        .alert("Hinweis", isPresented: $viewModel.showingAlert, presenting: viewModel.errorMessage) { _ in Button("OK"){ viewModel.errorMessage = nil } } message: { messageText in Text(messageText) }
+        .toolbar { /* ... Toolbar ... */ }
+        .overlay { /* ... Overlay für Ladeanzeige beim Speichern ... */ }
+        // --- ENDE KORREKTE STRUKTUR BODY ---
+    } // Ende Body
+
+    // --- Computed Properties für Sektionen (DIREKT INNERHALB STRUCT, AUSSERHALB BODY) ---
+    @ViewBuilder private func basicInfoSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
+    @ViewBuilder private func auftragSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
+    @ViewBuilder private func debtorSection(caseItem: Case) -> some View { /* ... Code von oben mit NavigationLink(value: caseItem.debtorId) ... */ }
+    @ViewBuilder private func amountsSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
+    @ViewBuilder private func statusSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
+    @ViewBuilder private func paymentPlanSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
+    @ViewBuilder private func paymentsSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
+    @ViewBuilder private func actionsSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
+
+    // --- Helfer Funktion (DIREKT INNERHALB STRUCT, AUSSERHALB BODY) ---
+    private func statusColor(_ status: String) -> Color { /* ... wie zuvor (mit default) ... */ }
+    // --- ENDE HELFER ---
+
+} // Ende Struct CaseDetailView
 
 // Preview bleibt wie zuvor
 #Preview { /* ... wie zuvor ... */ }
 
-// String Extension bleibt in Utils
+// KEINE String Extension hier! (gehört nach Utils)
