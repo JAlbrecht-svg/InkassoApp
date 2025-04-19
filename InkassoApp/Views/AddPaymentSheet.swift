@@ -1,18 +1,11 @@
-//
-//  AddPaymentSheet.swift
-//  InkassoApp
-//
-//  Created by Jannick Niwat Siewert-Albrecht on 4/19/25.
-//
-
-
 import SwiftUI
 
 struct AddPaymentSheet: View {
     // Übergebene Daten
     let caseId: String
     let currency: String
-    let viewModel: CaseDetailViewModel // Zum Aufrufen der Speicherfunktion
+    // Verwende @ObservedObject, wenn das ViewModel von außen kommt
+    @ObservedObject var caseViewModel: CaseDetailViewModel
 
     // Lokaler State für Formulareingaben
     @State private var amountString: String = ""
@@ -29,7 +22,6 @@ struct AddPaymentSheet: View {
 
     // Computed Property für Betrag
     private var amountValue: Double? {
-        // Ersetze Komma durch Punkt für Dezimaltrenner
         let cleanedString = amountString.replacingOccurrences(of: ",", with: ".")
         return Double(cleanedString)
     }
@@ -47,23 +39,30 @@ struct AddPaymentSheet: View {
 
             Form {
                 TextField("Betrag (\(currency)):", text: $amountString)
-                    .keyboardType(.decimalPad) // Erlaubt Zahlen und Dezimaltrennzeichen
+                    // Korrekt angehängte Modifier:
+                    .textFieldStyle(.roundedBorder) // <-- Wendet den RoundedBorderTextFieldStyle an
+                    .textContentType(.URL)
+                    .disableAutocorrection(true)
 
                 DatePicker("Zahlungsdatum:", selection: $paymentDate, displayedComponents: .date)
 
                 TextField("Zahlungsmethode (Optional):", text: $paymentMethod)
+                    .textFieldStyle(.roundedBorder)
 
                 TextField("Referenz/Verwendungszweck (Optional):", text: $reference)
+                    .textFieldStyle(.roundedBorder)
 
                 Section("Notizen (Optional)") {
                     TextEditor(text: $notes)
                         .frame(height: 80)
                         .border(Color.secondary.opacity(0.5))
+                        .cornerRadius(5)
                 }
 
                 if let errorMessage = errorMessage {
                     Text("Fehler: \(errorMessage)")
                         .foregroundColor(.red)
+                        .padding(.top, 5)
                 }
             }
 
@@ -80,9 +79,9 @@ struct AddPaymentSheet: View {
                     Task { await savePayment() }
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(!canSave) // Deaktiviere, wenn Betrag ungültig oder gespeichert wird
+                .disabled(!canSave)
                 .overlay { // Zeige Ladeanzeige über Button
-                    if isSaving { ProgressView() }
+                    if isSaving { ProgressView().controlSize(.small) }
                 }
             }
 
@@ -93,7 +92,7 @@ struct AddPaymentSheet: View {
 
     func savePayment() async {
         guard let amount = amountValue else {
-            errorMessage = "Bitte einen gültigen Betrag eingeben."
+            errorMessage = "Bitte einen gültigen Betrag eingeben (z.B. 123.45)."
             return
         }
         guard amount > 0 else {
@@ -109,9 +108,8 @@ struct AddPaymentSheet: View {
         dateFormatter.formatOptions = [.withFullDate, .withDashSeparatorInDate]
         let paymentDateString = dateFormatter.string(from: paymentDate)
 
-
         let payload = CreatePaymentPayloadDTO(
-            caseId: caseId, // Wird von außen übergeben
+            caseId: caseId,
             amount: amount,
             paymentDate: paymentDateString,
             paymentMethod: paymentMethod.isEmpty ? nil : paymentMethod,
@@ -119,25 +117,30 @@ struct AddPaymentSheet: View {
             notes: notes.isEmpty ? nil : notes
         )
 
-        let success = await viewModel.saveNewPayment(payload: payload) // Ruft ViewModel-Methode auf
+        // Rufe Speicherfunktion im CaseDetailViewModel auf
+        let success = await caseViewModel.saveNewPayment(payload: payload)
 
         if success {
             dismiss() // Schließe Sheet bei Erfolg
         } else {
-            // Fehlermeldung wird im ViewModel gesetzt und hier angezeigt
              isSaving = false // Erlaube erneuten Versuch
-             // Zeige den Fehler, der vom ViewModel gesetzt wurde
-             errorMessage = viewModel.errorMessage ?? "Unbekannter Fehler beim Speichern."
+             // Fehlermeldung wird im CaseDetailViewModel gesetzt und im Alert angezeigt,
+             // aber wir können sie hier auch nochmal anzeigen
+             errorMessage = caseViewModel.errorMessage ?? "Unbekannter Fehler beim Speichern."
         }
-        // isSaving wird im ViewModel zurückgesetzt
     }
 }
 
+// Preview bleibt wie zuvor
 #Preview {
-    // Braucht ein Dummy ViewModel für Preview
     let previewCase = Case(id: "case-prev", debtorId: "d1", auftragId: "a1", caseReference: "AZ-PREV-001", originalAmount: 100.50, feesAmount: 10, interestAmount: 2.5, paidAmount: 20, currency: "EUR", status: "reminder_1", reasonForClaim: "Testrechnung", openedAt: Date().ISO8601Format(), dueDate: Date().ISO8601Format(), closedAt: nil, createdAt: Date().ISO8601Format(), updatedAt: Date().ISO8601Format())
     let detailVM = CaseDetailViewModel(listViewModel: nil)
-    detailVM.caseItem = previewCase // Setze Dummy-Fall
+    detailVM.caseItem = previewCase
 
-    return AddPaymentSheet(caseId: "case-prev", currency: "EUR", viewModel: detailVM)
+    return Text("Vorschau-Button")
+        .sheet(isPresented: .constant(true)) {
+            NavigationView {
+                 AddPaymentSheet(caseId: "case-prev", currency: "EUR", caseViewModel: detailVM)
+            }
+        }
 }

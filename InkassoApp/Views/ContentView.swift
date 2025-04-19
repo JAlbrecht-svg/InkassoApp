@@ -4,28 +4,42 @@ struct ContentView: View {
     @Environment(\.apiTokenAvailable) var apiTokenAvailable
 
     var body: some View {
-        // Hauptansicht ist jetzt direkt die Fallliste
-        NavigationView { // NavigationView statt NavigationSplitView für einfachere Struktur
-             CaseListView() // Starte mit der Fallliste
-                 .toolbar {
-                     ToolbarItem(placement: .navigation) { // Button um Sidebar ggf. einzublenden (Standard bei NavigationView)
-                         // Dieser Button ist bei NavigationView oft automatisch da
-                         Button(action: toggleSidebar, label: {
-                             Image(systemName: "sidebar.left")
-                         })
-                     }
-                 }
-        }
-        // Optional: Wenn du doch eine Seitenleiste willst, nimm NavigationSplitView wie zuvor
-        // und passe die List-Inhalte an (nur Fälle und Einstellungen?)
-        /*
         NavigationSplitView {
+            // Seitenleiste (Sidebar)
             List {
                 NavigationLink {
                     CaseListView()
                 } label: {
                     Label("Fälle", systemImage: "doc.text.fill")
                 }
+
+                // Optional: Füge hier wieder Links hinzu, wenn Sachbearbeiter
+                // auch andere Listen sehen sollen (aber ohne Admin-Funktionen)
+                /*
+                 NavigationLink {
+                     DebtorListView()
+                 } label: {
+                     Label("Schuldner", systemImage: "person.fill")
+                 }
+
+                 NavigationLink {
+                      AuftragListView() // Zeigt alle Aufträge
+                 } label: {
+                     Label("Aufträge", systemImage: "briefcase.fill")
+                 }
+
+                 NavigationLink {
+                      MandantenListView() // Zeigt alle Mandanten
+                 } label: {
+                     Label("Mandanten", systemImage: "person.2.fill")
+                 }
+
+                 NavigationLink {
+                      WorkflowListView()
+                 } label: {
+                     Label("Workflows", systemImage: "arrow.triangle.branch")
+                 }
+                 */
 
                 Divider()
 
@@ -37,20 +51,27 @@ struct ContentView: View {
             }
             .listStyle(.sidebar)
             .navigationTitle("InkassoApp")
+            // --- KORREKTUR HIER ---
+            // Füge diesen Modifier hinzu, um die Breite anzupassen
+            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 400)
+            // --- ENDE KORREKTUR ---
+
         } detail: {
-             Text("Bitte einen Fall auswählen.")
-                 .font(.title2)
-                 .foregroundColor(.secondary)
+            // Detailbereich (Startansicht)
+            VStack {
+                 Image(systemName: "folder.badge.person.crop") // Passenderes Icon
+                     .resizable()
+                     .scaledToFit()
+                     .frame(width: 80, height: 80)
+                     .foregroundColor(.secondary)
+                     .padding(.bottom)
+                 Text("Bitte einen Bereich auswählen.")
+                     .font(.title2)
+                     .foregroundColor(.secondary)
+            }
         }
-        */
         .frame(minWidth: 700, minHeight: 450)
     }
-
-    // Helper für Sidebar Toggle (nur bei NavigationView relevant)
-     private func toggleSidebar() {
-          // Standard macOS Sidebar Toggle
-          NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSSplitViewController.toggleSidebar(_:)), with: nil)
-      }
 }
 
 #Preview {
