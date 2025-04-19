@@ -91,8 +91,7 @@ struct DebtorDetailView: View {
                  TextField("E-Mail:", text: $email)
                       .textFieldStyle(.roundedBorder)
                  TextField("Telefon:", text: $phone)
-                      .textFieldStyle(.roundedBorder)
-                     .keyboardType(.phonePad)
+                     
             }
 
              Section("Adresse") {
@@ -100,12 +99,11 @@ struct DebtorDetailView: View {
                     .textFieldStyle(.roundedBorder)
                  TextField("PLZ:", text: $addressZip)
                     .textFieldStyle(.roundedBorder)
-                    .keyboardType(.numberPad)
                  TextField("Stadt:", text: $addressCity)
                     .textFieldStyle(.roundedBorder)
                  TextField("Land:", text: $addressCountry)
                      .textFieldStyle(.roundedBorder)
-                     .autocapitalization(.allCharacters)
+                     
             }
 
              Section("Notizen") {
