@@ -13,6 +13,7 @@ class DebtorDetailViewModel: ObservableObject {
     private var originalDebtor: Debtor? // Für Vergleich/Reset
     private var apiService = APIService.shared
     private var debtorIdToLoad: String
+    
 
     init(debtorId: String) {
         // Konvertiere Platzhalter-ID zur Sicherheit
@@ -65,6 +66,9 @@ class DebtorDetailViewModel: ObservableObject {
         return !current.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasChanges
     }
 
+    var isNewDebtor: Bool {
+        originalDebtor == nil // Gibt true zurück, wenn noch kein Original geladen wurde (also neu)
+    }
     func saveDebtor() async -> Bool {
         guard let currentDebtor = debtor, canSave else {
             print("Save skipped: No changes or invalid data.")
@@ -94,7 +98,7 @@ class DebtorDetailViewModel: ObservableObject {
             debtorType: currentDebtor.debtorType == originalDebtor?.debtorType ? nil : currentDebtor.debtorType,
             notes: currentDebtor.notes == originalDebtor?.notes ? nil : currentDebtor.notes
         )
-
+    
         // Prüfen, ob Payload effektiv leer ist (keine Änderungen gesendet)
         let payloadData = try? JSONEncoder().encode(updatePayload)
         let payloadDict = try? JSONSerialization.jsonObject(with: payloadData ?? Data()) as? [String: Any]
@@ -131,7 +135,7 @@ class DebtorDetailViewModel: ObservableObject {
         isLoading = false
         return success
     }
-
+   
     func resetChanges() {
         self.debtor = originalDebtor // Auf letzten gespeicherten Stand zurücksetzen
         errorMessage = nil

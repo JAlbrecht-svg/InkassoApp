@@ -8,7 +8,7 @@ struct CaseDetailView: View {
     private weak var caseListViewModel: CaseListViewModel?
     let caseToLoad: Case
     // --- ENDE EIGENSCHAFTEN ---
-
+    
     // Initialisierer (Direkt innerhalb Struct)
     init(listViewModel: CaseListViewModel?, caseToLoad: Case) {
         self.caseListViewModel = listViewModel
@@ -16,7 +16,7 @@ struct CaseDetailView: View {
         // Erstelle das StateObject *hier*
         _viewModel = StateObject(wrappedValue: CaseDetailViewModel(listViewModel: listViewModel))
     }
-
+    
     // Body (Computed Property)
     var body: some View {
         // --- KORREKTE STRUKTUR BEGINNT HIER ---
@@ -41,7 +41,7 @@ struct CaseDetailView: View {
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
-
+                    
                 } else if let caseItem = viewModel.caseItem {
                     // Hauptinhalt mit Sektionen
                     basicInfoSection(caseItem: caseItem)
@@ -52,12 +52,12 @@ struct CaseDetailView: View {
                     paymentPlanSection(caseItem: caseItem)
                     paymentsSection(caseItem: caseItem)
                     actionsSection(caseItem: caseItem)
-
+                    
                 } else {
-                     Text("Fallinformationen nicht verfügbar oder werden geladen...")
-                         .foregroundColor(.secondary)
-                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                         .padding()
+                    Text("Fallinformationen nicht verfügbar oder werden geladen...")
+                        .foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding()
                 }
             } // Ende Form
             .padding() // Außenpadding für Form
@@ -72,7 +72,7 @@ struct CaseDetailView: View {
         .overlay { /* ... Overlay für Ladeanzeige beim Speichern ... */ }
         // --- ENDE KORREKTE STRUKTUR BODY ---
     } // Ende Body
-
+    
     // --- Computed Properties für Sektionen (DIREKT INNERHALB STRUCT, AUSSERHALB BODY) ---
     @ViewBuilder private func basicInfoSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
     @ViewBuilder private func auftragSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
@@ -82,14 +82,22 @@ struct CaseDetailView: View {
     @ViewBuilder private func paymentPlanSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
     @ViewBuilder private func paymentsSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
     @ViewBuilder private func actionsSection(caseItem: Case) -> some View { /* ... wie zuvor ... */ }
-
-    // --- Helfer Funktion (DIREKT INNERHALB STRUCT, AUSSERHALB BODY) ---
-    private func statusColor(_ status: String) -> Color { /* ... wie zuvor (mit default) ... */ }
-    // --- ENDE HELFER ---
-
-} // Ende Struct CaseDetailView
-
-// Preview bleibt wie zuvor
-#Preview { /* ... wie zuvor ... */ }
-
-// KEINE String Extension hier! (gehört nach Utils)
+    
+    private func statusColor(_ status: String) -> Color {
+        switch status.lowercased() { // Prüfe den Kleingeschriebenen Status
+        case "open": return .blue
+        case "reminder_1", "reminder_2", "payment_plan", "contested": return .orange
+        case "paid": return .green
+        case "legal_internal", "legal_external", "legal": return .purple
+        case "closed_uncollectible": return .gray
+            // --- Default-Fall für alle anderen/unbekannten Status ---
+        default: return .secondary
+            
+        } // Ende Struct CaseDetailView
+        
+        // Preview bleibt wie zuvor
+        #Preview { /* ... wie zuvor ... */ }
+        
+        // KEINE String Extension hier! (gehört nach Utils)
+    }
+}
