@@ -29,33 +29,9 @@
 		BD87D2412DB3E5FA008D9300 /* InkassoAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = InkassoAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		BD87D2A72DB424C5008D9300 /* Exceptions for "InkassoApp" folder in "InkassoApp" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"Utils/Binding+Helpers.swift",
-			);
-			target = BD87D2282DB3E5F8008D9300 /* InkassoApp */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		BD87D2A82DB424C5008D9300 /* Exceptions for "InkassoApp" folder in "Copy Bundle Resources" phase from "InkassoApp" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			buildPhase = BD87D2272DB3E5F8008D9300 /* Resources */;
-			membershipExceptions = (
-				"Utils/Binding+Helpers.swift",
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		BD87D22B2DB3E5F8008D9300 /* InkassoApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				BD87D2A72DB424C5008D9300 /* Exceptions for "InkassoApp" folder in "InkassoApp" target */,
-				BD87D2A82DB424C5008D9300 /* Exceptions for "InkassoApp" folder in "Copy Bundle Resources" phase from "InkassoApp" target */,
-			);
 			path = InkassoApp;
 			sourceTree = "<group>";
 		};
