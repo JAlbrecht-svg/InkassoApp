@@ -1,66 +1,55 @@
-//
-//  Dateformatting.swift
-//  InkassoApp
-//
-//  Created by Jannick Niwat Siewert-Albrecht on 4/19/25.
-//
-
-
 import Foundation
 
-// Globale Funktionen oder Extension für Datumsformatierung
+// --- Datumsformatierung ---
 
-/// Formatiert einen ISO8601-ähnlichen String in ein lesbares Datums-/Zeitformat.
+/// Formatiert einen ISO8601-ähnlichen String in ein lesbares Datums-/Zeitformat (lokalisiert).
 func formattedDate(_ dateString: String) -> String {
-	let formatters = [
-		ISO8601DateFormatter(), // Standard ISO8601
-		iso8601FractionalSecondsFormatter(), // Mit Millisekunden
-        iso8601TimeZoneFormatter() // Mit Zeitzonen-Separator
-	]
+    let formatters = [
+        ISO8601DateFormatter(), // Standard ISO8601
+        iso8601FractionalSecondsFormatter(), // Mit Millisekunden
+        iso8601TimeZoneFormatter(), // Mit Zeitzonen-Separator Z
+        iso8601DateOnlyFormatter() // Nur Datum
+    ]
 
-	for formatter in formatters {
-		if let date = formatter.date(from: dateString) {
-			// Verwende das Standard .formatted() für lokale Darstellung
-			return date.formatted(date: .numeric, time: .shortened) // z.B. 19.04.25, 16:30
-		}
-	}
-	// Fallback, wenn kein Format passt
-	return dateString
+    for formatter in formatters {
+        if let date = formatter.date(from: dateString) {
+            // Verwende das Standard .formatted() für lokale Darstellung
+            return date.formatted(.dateTime.day().month().year().hour().minute())
+        }
+    }
+    // Fallback
+    return dateString
 }
 
-/// Formatiert einen optionalen ISO8601-ähnlichen String.
+/// Formatiert einen optionalen ISO8601-ähnlichen String. Gibt "-" zurück, wenn nil oder leer.
 func formattedDateOptional(_ dateString: String?) -> String {
-	guard let dateString = dateString, !dateString.isEmpty else { return "-" }
-	return formattedDate(dateString)
+    guard let dateString = dateString, !dateString.isEmpty else { return "-" }
+    return formattedDate(dateString)
 }
 
-
-// Private Helfer-Formatter für spezifische ISO-Varianten
+// --- Private Helfer-Formatter (Nur einmal definiert!) ---
 private func iso8601FractionalSecondsFormatter() -> ISO8601DateFormatter {
-	let formatter = ISO8601DateFormatter()
-	formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-	return formatter
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter
 }
 private func iso8601TimeZoneFormatter() -> ISO8601DateFormatter {
-	let formatter = ISO8601DateFormatter()
-	formatter.formatOptions = [.withInternetDateTime, .withColonSeparatorInTimeZone]
-	return formatter
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withDashSeparatorInDate, .withColonSeparatorInTime, .withColonSeparatorInTimeZone]
+    return formatter
 }
-
-// Alternativ als Date Extension:
-/*
-extension Date {
-    func formattedShort() -> String {
-        self.formatted(date: .numeric, time: .shortened)
-    }
+ private func iso8601DateOnlyFormatter() -> ISO8601DateFormatter {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withFullDate, .withDashSeparatorInDate]
+    return formatter
 }
+// --- Ende Private Helfer ---
 
+
+// --- String Extension (wie zuvor) ---
 extension String {
-    func formattedDateString() -> String {
-       // ... (Logik von oben hier rein) ...
-        if let date = ... { return date.formattedShort() }
-       // ...
-       return self
+    var displayFormat: String {
+        self.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }
-*/
+// --- ENDE String Extension ---

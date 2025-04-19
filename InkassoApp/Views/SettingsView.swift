@@ -6,11 +6,14 @@ struct SettingsView: View {
     @State private var newToken: String = ""
     @State private var saveMessage: String = ""
     @State private var messageColor: Color = .green
-    // Lade über die Computed Property
-    @State private var apiBaseURL: String = APIService.shared.currentBaseURLString ?? ""
+    // apiBaseURL State wird nicht mehr benötigt
 
     var forceShow: Bool = false
     @Environment(\.dismiss) var dismiss
+
+    // --- KORREKTUR: Feste URL anzeigen ---
+    private let fixedApiBaseURL = "https://wild-thunder-d361.siewertservices.workers.dev/api"
+    // --- ENDE KORREKTUR ---
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -19,24 +22,26 @@ struct SettingsView: View {
 
             GroupBox("API Verbindung") {
                  VStack(alignment: .leading) {
-                    Text("Basis-URL des Workers (inkl. /api Pfad):")
-                    // Korrekt verkettete Modifier:
-                    TextField("https://wild-thunder-d361.siewertservices.workers.dev/api", text: $apiBaseURL)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.URL)
-                        .disableAutocorrection(true)
-                       
+                    // --- KORREKTUR: URL nur anzeigen ---
+                    Text("Verwendete Basis-URL:")
+                    Text(fixedApiBaseURL) // Zeige feste URL an
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 5)
+                    // TextField für apiBaseURL entfernt
+                    // --- ENDE KORREKTUR ---
 
                     Text("Bearer Token:")
                         .padding(.top, 5)
-                    SecureField("API Token hier einfügen", text: $newToken)
+                    SecureField("Neuen API Token hier einfügen", text: $newToken)
                          .textFieldStyle(.roundedBorder)
 
                     HStack {
-                         Button("Verbindung testen & Speichern") {
-                              saveSettings()
+                         // --- KORREKTUR: Button speichert nur Token ---
+                         Button("Verbindung testen & Token Speichern") {
+                              saveTokenOnly() // Neue Funktion verwenden
                          }
-                         .disabled(newToken.isEmpty || apiBaseURL.isEmpty || !(apiBaseURL.lowercased().starts(with: "http")))
+                         .disabled(newToken.isEmpty) // Nur Token prüfen
+                         // --- ENDE KORREKTUR ---
 
                          Spacer()
                     }
@@ -79,45 +84,29 @@ struct SettingsView: View {
         .padding()
         .frame(minWidth: 450, idealWidth: 500, minHeight: 300)
         .onAppear {
-            // Verwende die Computed Property zum Lesen
+            // Nur Token laden, URL ist fest
             currentToken = KeychainService.shared.loadToken() ?? ""
-            apiBaseURL = APIService.shared.currentBaseURLString ?? ""
-            isApiTokenSet = !currentToken.isEmpty && !apiBaseURL.isEmpty
+            isApiTokenSet = !currentToken.isEmpty
         }
     }
 
-    // Korrigierte Speicherfunktion
-    func saveSettings() {
-        let cleanedUrlString = apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // --- KORRIGIERTE URL-PRÜFUNG ---
-        guard !cleanedUrlString.isEmpty,
-              cleanedUrlString.lowercased().starts(with: "http"),
-              URL(string: cleanedUrlString) != nil // Prüft nur, ob URL syntaktisch gültig ist
-        else {
-            saveMessage = "Bitte eine gültige Basis-URL eingeben (muss mit http:// oder https:// beginnen)."
-            messageColor = .red
-            return
-        }
-        // --- ENDE KORREKTUR ---
-
+    // --- KORREKTUR: Nur Token speichern ---
+    func saveTokenOnly() {
         guard !newToken.isEmpty else {
              saveMessage = "Bitte einen API Token eingeben."
              messageColor = .red
              return
         }
 
-        // Setze die URL im Service (die Methode ist public)
-        APIService.shared.setBaseURL(urlString: cleanedUrlString)
-
         // Speichere den Token
         let success = KeychainService.shared.saveToken(newToken)
         if success {
             currentToken = newToken
             isApiTokenSet = true
-            saveMessage = "Token & URL gespeichert!"
+            saveMessage = "Token gespeichert!"
             messageColor = .green
-            newToken = ""
+            newToken = "" // Feld leeren
+            // Schließen-Logik kann bleiben
             if forceShow == false {
                  DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { dismiss() }
             }
@@ -126,6 +115,7 @@ struct SettingsView: View {
             messageColor = .red
         }
     }
+    // --- ENDE KORREKTUR ---
 
     // deleteToken Funktion bleibt wie zuvor
     func deleteToken() {
