@@ -1,128 +1,74 @@
+// ViewModels/DebtorDetailViewModel.swift
 import Foundation
 import SwiftUI
 
 @MainActor
 class DebtorDetailViewModel: ObservableObject {
 
-    // Der Debtor, der bearbeitet wird (Optional, da er geladen werden muss)
     @Published var debtor: Debtor? = nil
-    // Zustand für Lade-/Speicheranzeige
     @Published var isLoading: Bool = false
-    // Fehlermeldung für die View
     @Published var errorMessage: String? = nil
-    // Steuert die Anzeige des Alerts in der View
     @Published var showingAlert: Bool = false
 
-    // Hält das Original zum Vergleichen und Zurücksetzen
+    // Original zum Vergleichen und für isNewDebtor Check (bleibt private)
     private var originalDebtor: Debtor?
-    // Referenz zum API Service
     private var apiService = APIService.shared
-    // Die ID des zu ladenden/bearbeitenden Schuldners
     private var debtorIdToLoad: String
 
-    // Initialisierer, der die ID des Schuldners erhält
+    // Initialisierer nimmt nur die ID entgegen
     init(debtorId: String) {
-        // Konvertiere ggf. Preview-IDs oder leere Strings
         self.debtorIdToLoad = debtorId.isEmpty || debtorId == "debtor-preview" ? "" : debtorId
         print("Debtor Detail VM init for ID: \(self.debtorIdToLoad.isEmpty ? "New/Invalid" : self.debtorIdToLoad)")
-        // Wenn die ID leer ist, könnte man hier einen leeren Debtor erstellen (für "Neu"-Funktion)
-        // if self.debtorIdToLoad.isEmpty {
-        //     self.debtor = Debtor(...) // Leere Instanz erstellen
-        //     self.originalDebtor = self.debtor
-        // }
-        // Aktuell laden wir immer, auch wenn die ID bekannt ist, über .task in der View
     }
 
-    /// Lädt die Details für den Schuldner mit der `debtorIdToLoad`.
+    /// Computed Property, die prüft, ob der Debtor neu ist (wird von der View verwendet)
+    var isNewDebtor: Bool {
+        originalDebtor == nil
+    }
+
+    /// Lädt die Details für den Schuldner
     func loadDebtor() async {
         guard !isLoading else { return }
-        // Nur laden, wenn eine gültige ID vorhanden ist
         guard !debtorIdToLoad.isEmpty else {
-            print("Cannot load debtor: debtorIdToLoad is empty.")
-            self.errorMessage = "Keine Schuldner-ID zum Laden vorhanden."
-            self.showingAlert = true
-            return
+            self.errorMessage = "Keine Schuldner-ID zum Laden vorhanden."; self.showingAlert = true; return
         }
-        // Nur neu laden, wenn noch kein Debtor geladen wurde oder die ID nicht übereinstimmt
-        if debtor != nil && debtor?.id == debtorIdToLoad {
-            print("Debtor \(debtorIdToLoad) already loaded.")
-            return
-        }
+        if debtor != nil && debtor?.id == debtorIdToLoad { print("Debtor \(debtorIdToLoad) already loaded."); return }
 
-        isLoading = true
-        errorMessage = nil
+        isLoading = true; errorMessage = nil
         print("Lade Debtor Details für ID: \(debtorIdToLoad)")
         do {
             let fetchedDebtor = try await apiService.fetchDebtor(id: debtorIdToLoad)
-            self.debtor = fetchedDebtor
-            self.originalDebtor = fetchedDebtor // Original nach dem Laden speichern
-            errorMessage = nil
+            self.debtor = fetchedDebtor; self.originalDebtor = fetchedDebtor; errorMessage = nil
         } catch {
-            self.errorMessage = "Fehler beim Laden der Schuldnerdetails: \(error.localizedDescription)"
-            self.showingAlert = true
-            print("Error loading debtor details: \(error)")
-            self.debtor = nil // Setze zurück bei Fehler
-            self.originalDebtor = nil
+            self.errorMessage = "Fehler: \(error.localizedDescription)"; self.showingAlert = true; print("Error loading debtor details: \(error)"); self.debtor = nil; self.originalDebtor = nil
         }
         isLoading = false
     }
 
-    /// Computed Property, die prüft, ob der Debtor neu erstellt wird (also noch keine ID vom Server hat).
-    var isNewDebtor: Bool {
-        // Wahr, wenn originalDebtor nil ist (wurde noch nie vom Server geladen/gespeichert)
-        originalDebtor == nil
-    }
-
-    /// Computed Property, die prüft, ob Änderungen vorgenommen wurden.
+    /// Prüft, ob Änderungen vorliegen
     var hasChanges: Bool {
-        guard let current = debtor, let original = originalDebtor else {
-            // Wenn kein Original existiert (neuer Debtor), gibt es Änderungen, sobald debtor nicht nil ist
-            return debtor != nil
-        }
-        // Vergleiche alle relevanten Felder
-        return current.name != original.name ||
-               current.debtorType != original.debtorType ||
-               current.addressStreet != original.addressStreet ||
-               current.addressZip != original.addressZip ||
-               current.addressCity != original.addressCity ||
-               current.addressCountry != original.addressCountry ||
-               current.email != original.email ||
-               current.phone != original.phone ||
-               current.notes != original.notes
+        guard let current = debtor, let original = originalDebtor else { return debtor != nil } // Änderung, wenn neu und debtor existiert
+        return current != original // Verwendet Hashable Konformität für einfachen Vergleich
     }
 
-    /// Computed Property, die prüft, ob gespeichert werden kann.
+    /// Prüft, ob gespeichert werden kann
     var canSave: Bool {
-        // Es muss ein Debtor-Objekt geben, der Name darf nicht leer sein,
-        // es muss Änderungen geben und es darf nicht gerade geladen/gespeichert werden.
         guard let current = debtor else { return false }
         return !current.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && hasChanges && !isLoading
     }
 
-    /// Speichert die Änderungen am Schuldner über den APIService.
+    /// Speichert die Änderungen
     func saveDebtor() async -> Bool {
-        guard let currentDebtor = debtor else {
-             errorMessage = "Keine Schuldnerdaten zum Speichern vorhanden."; showingAlert = true; return false
-        }
-        guard canSave else {
+        guard let currentDebtor = debtor, canSave else {
             print("Save skipped: No effective changes or invalid data.")
-            if currentDebtor.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                 errorMessage = "Schuldnername darf nicht leer sein."
-                 showingAlert = true
-            } else if !hasChanges {
-                 errorMessage = "Keine Änderungen zum Speichern." // Info
-                 showingAlert = true
-            }
+            if debtor?.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true { errorMessage = "Schuldnername darf nicht leer sein."; showingAlert = true }
+            else if !hasChanges { errorMessage = "Keine Änderungen zum Speichern."; showingAlert = true }
             return false
         }
 
-        isLoading = true
-        errorMessage = nil
+        isLoading = true; errorMessage = nil
         var success = false
-
-        // Erstelle Payload nur mit den geänderten Feldern (wie im Original-Check)
-        // Stelle sicher, dass UpdateDebtorPayloadDTO in PayloadDTOs.swift existiert
-        let updatePayload = UpdateDebtorPayloadDTO(
+        let updatePayload = UpdateDebtorPayloadDTO( /* ... Payload wie zuvor erstellen ... */
             name: currentDebtor.name == originalDebtor?.name ? nil : currentDebtor.name,
             addressStreet: currentDebtor.addressStreet == originalDebtor?.addressStreet ? nil : currentDebtor.addressStreet,
             addressZip: currentDebtor.addressZip == originalDebtor?.addressZip ? nil : currentDebtor.addressZip,
@@ -133,55 +79,19 @@ class DebtorDetailViewModel: ObservableObject {
             debtorType: currentDebtor.debtorType == originalDebtor?.debtorType ? nil : currentDebtor.debtorType,
             notes: currentDebtor.notes == originalDebtor?.notes ? nil : currentDebtor.notes
         )
-
-        // Prüfen, ob Payload effektiv leer ist (sollte durch canSave abgedeckt sein, aber doppelt hält besser)
-        let payloadData = try? JSONEncoder().encode(updatePayload)
-        let payloadDict = try? JSONSerialization.jsonObject(with: payloadData ?? Data()) as? [String: Any]
-        if payloadDict?.isEmpty ?? true {
-             print("No effective changes detected to send for update.")
-             isLoading = false
-             errorMessage = "Keine Änderungen zum Speichern." // Info
-             showingAlert = true
-             return true // Betrachte es als "Erfolg", da keine Aktion nötig
-        }
-
+        // Prüfen ob Payload effektiv leer ist (optional)
+        let payloadData = try? JSONEncoder().encode(updatePayload); let payloadDict = try? JSONSerialization.jsonObject(with: payloadData ?? Data()) as? [String: Any]; if payloadDict?.isEmpty ?? true { print("No effective changes to send."); isLoading = false; errorMessage = "Keine Änderungen zum Speichern."; showingAlert = true; return true }
 
         do {
             print("Updating Debtor \(currentDebtor.id)...")
-            // Rufe die updateDebtor Methode im APIService auf
             let savedDebtor = try await apiService.updateDebtor(id: currentDebtor.id, payload: updatePayload)
-
-            // Nach erfolgreichem Speichern: Original aktualisieren und lokalen State synchronisieren
-            self.originalDebtor = savedDebtor
-            self.debtor = savedDebtor // Wichtig, damit hasChanges wieder false wird
-            success = true
-            print("Debtor saved successfully.")
-            errorMessage = "Schuldner erfolgreich gespeichert." // Erfolgsmeldung
-            showingAlert = true
-
-        } catch let error as APIError {
-             print("API Error saving Debtor: \(error.localizedDescription)")
-             self.errorMessage = "Fehler beim Speichern: \(error.localizedDescription)"
-             self.showingAlert = true
-             success = false
-        } catch {
-            print("Unexpected Error saving Debtor: \(error)")
-            self.errorMessage = "Unerwarteter Fehler: \(error.localizedDescription)"
-            self.showingAlert = true
-            success = false
+            self.originalDebtor = savedDebtor; self.debtor = savedDebtor; success = true; print("Debtor saved successfully."); errorMessage = "Schuldner erfolgreich gespeichert."; showingAlert = true
+        } catch { /* ... Fehlerbehandlung wie zuvor ... */
+            self.errorMessage = "Fehler beim Speichern: \(error.localizedDescription)"; self.showingAlert = true; success = false; print("Error saving Debtor: \(error)")
         }
-        isLoading = false
-        return success
+        isLoading = false; return success
     }
 
-    /// Setzt die Änderungen auf den letzten gespeicherten Stand zurück.
-    func resetChanges() {
-        // Nur zurücksetzen, wenn ein Original existiert
-        if let original = originalDebtor {
-            self.debtor = original
-            errorMessage = nil // Auch Fehler zurücksetzen
-            isLoading = false // Sicherstellen, dass Loading-State beendet ist
-            print("Debtor changes reset.")
-        }
-    }
+    /// Setzt Änderungen zurück
+    func resetChanges() { if let original = originalDebtor { self.debtor = original }; errorMessage = nil; isLoading = false; print("Debtor changes reset.") }
 }
