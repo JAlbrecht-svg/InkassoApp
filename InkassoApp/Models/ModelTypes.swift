@@ -1,9 +1,3 @@
-//
-//  ModelTypes.swift
-//  InkassoApp
-//
-//  Created by Jannick Niwat Siewert-Albrecht on 4/19/25.
-//
 import Foundation
 
 // Identifiable damit es in SwiftUI ForEach verwendet werden kann
@@ -17,8 +11,8 @@ struct Mandant: Identifiable, Codable, Hashable {
     var email: String?
     var phone: String?
     var isActive: Int // 0 oder 1
-    var createdAt: String // TODO: Zu Date konvertieren?
-    var updatedAt: String // TODO: Zu Date konvertieren?
+    var createdAt: String
+    var updatedAt: String
 
     enum CodingKeys: String, CodingKey {
         case id, name, email, phone
@@ -56,7 +50,7 @@ struct WorkflowStep: Identifiable, Codable, Hashable {
     var triggerValue: Int
     var actionToPerform: String
     var templateIdentifier: String?
-    var feeToCharge: Double // SQL REAL -> Double
+    var feeToCharge: Double
     var targetCaseStatus: String?
     var createdAt: String
     var updatedAt: String
@@ -144,18 +138,20 @@ struct Case: Identifiable, Codable, Hashable {
     var createdAt: String
     var updatedAt: String
 
-    // Zugehörige Daten (optional, wenn vom API-Endpunkt mitgeliefert, z.B. durch JOIN)
+    // Zugehörige Daten (optional, wenn vom API-Endpunkt mitgeliefert)
     var debtorName: String?
     var auftragName: String?
     var mandantName: String?
+    var mandantNumber: String?
+    var addressStreet: String? // Beispiel: Schuldneradresse direkt im Case-Objekt
+    var addressZip: String?
+    var addressCity: String?
 
-    var totalDue: Double { // Berechnete Eigenschaft
-        originalAmount + feesAmount + interestAmount
-    }
-    var outstandingAmount: Double { // Berechnete Eigenschaft
-        totalDue - paidAmount
-    }
+    // Berechnete Eigenschaften
+    var totalDue: Double { originalAmount + feesAmount + interestAmount }
+    var outstandingAmount: Double { totalDue - paidAmount }
 
+    // CodingKeys (inkl. optionaler Namen/Adressen)
     enum CodingKeys: String, CodingKey {
         case id, currency, status
         case debtorId = "debtor_id"
@@ -171,10 +167,14 @@ struct Case: Identifiable, Codable, Hashable {
         case closedAt = "closed_at"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
-        // Zugehörige Daten (optional, passe Namen an API-Antwort an)
+        // Zugehörige Daten (Namen müssen exakt der API-Antwort entsprechen!)
         case debtorName = "debtor_name"
         case auftragName = "auftrag_name"
         case mandantName = "mandant_name"
+        case mandantNumber = "mandant_number"
+        case addressStreet = "address_street"
+        case addressZip = "address_zip"
+        case addressCity = "address_city"
     }
 }
 
@@ -214,5 +214,12 @@ struct Action: Identifiable, Codable, Hashable {
         case actionDate = "action_date"
         case createdByUser = "created_by_user"
         case createdAt = "created_at"
-    }
+     }
+}
+
+// Hilfstyp für Status-Auswahl (Wichtig für CaseDetailViewModel)
+struct CaseStatusOption: Identifiable, Hashable {
+    let id: String // Der eigentliche Statuswert (z.B. "open", "reminder_1")
+    // Erzeugt einen lesbaren Namen für die UI (z.B. "Open", "Reminder 1")
+    var name: String { id.replacingOccurrences(of: "_", with: " ").capitalized }
 }

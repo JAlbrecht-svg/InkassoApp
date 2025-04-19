@@ -1,16 +1,14 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Binding var isApiTokenSet: Bool // Wird übergeben
+    @Binding var isApiTokenSet: Bool
+    // Lade initiale Werte beim Erstellen des @State
     @State private var currentToken: String = KeychainService.shared.loadToken() ?? ""
     @State private var newToken: String = ""
     @State private var saveMessage: String = ""
     @State private var messageColor: Color = .green
-    // Optional: API Base URL hier konfigurierbar machen
-    @State private var apiBaseURL: String = APIService.shared.baseURL?.absoluteString ?? ""
+    @State private var apiBaseURL: String = APIService.shared.currentBaseURLString ?? "" // Korrekter Lesezugriff
 
-    // forceShow wird verwendet, um den "Abbrechen"-Button auszublenden,
-    // wenn die View beim App-Start wegen fehlendem Token angezeigt wird.
     var forceShow: Bool = false
     @Environment(\.dismiss) var dismiss
 
@@ -21,12 +19,14 @@ struct SettingsView: View {
 
             GroupBox("API Verbindung") {
                  VStack(alignment: .leading) {
-                    Text("Basis-URL des Workers:")
-                    TextField("https://worker.subdomain.workers.dev", text: $apiBaseURL)
-                        .textFieldStyle(.roundedBorder)
-                        .textContentType(.URL)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
+                    Text("Basis-URL des Workers (inkl. /api Pfad):") // Hinweis hinzugefügt
+                    // Modifier direkt am TextField anwenden:
+                     TextField("https://wild-thunder-d361.siewertservices.workers.dev/api", text: $apiBaseURL)
+                         .textFieldStyle(.roundedBorder)
+                         .textContentType(.URL)         // Korrekt: Direkt am TextField
+                         .disableAutocorrection(true) // Korrekt: Direkt am TextField
+                         .(true)
+                         
 
                     Text("Bearer Token:")
                         .padding(.top, 5)
@@ -35,26 +35,26 @@ struct SettingsView: View {
 
                     HStack {
                          Button("Verbindung testen & Speichern") {
-                              // TODO: API Test-Endpunkt implementieren?
+                              // TODO: API Test-Endpunkt implementieren im Worker?
                               saveSettings()
                          }
-                         .disabled(newToken.isEmpty || apiBaseURL.isEmpty)
+                         // Prüfe auch, ob die URL gültig *aussieht* und Token nicht leer ist
+                         .disabled(newToken.isEmpty || apiBaseURL.isEmpty || !(apiBaseURL.lowercased().starts(with: "http")))
 
                          Spacer()
                     }
 
-                     Text("Aktuell gespeicherter Token: \(currentToken.isEmpty ? "Keiner" : "\(String(currentToken.prefix(4)))...\(String(currentToken.suffix(4)))")")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.top, 1)
+                    Text("Aktuell gespeicherter Token: \(currentToken.isEmpty ? "Keiner" : "\(String(currentToken.prefix(4)))...\(String(currentToken.suffix(4)))")") // Korrekte Klammerung
+                       .font(.caption)
+                       .foregroundColor(.secondary)
+                       .padding(.top, 1)
 
-                     if !saveMessage.isEmpty {
-                         Text(saveMessage)
-                             .foregroundColor(messageColor)
-                             .padding(.top, 5)
-                     }
+                    if !saveMessage.isEmpty {
+                        Text(saveMessage)
+                            .foregroundColor(messageColor)
+                            .padding(.top, 5)
+                    }
                  }.padding(.vertical, 5)
-
             }
 
 
@@ -71,55 +71,73 @@ struct SettingsView: View {
 
             HStack{
                  Spacer()
-                 // Nur anzeigen wenn nicht beim Start erzwungen
                  if !forceShow {
                      Button("Schließen") {
-                         dismiss() // Schließt das Einstellungsfenster
+                         dismiss()
                      }
-                     .keyboardShortcut(.cancelAction) // Erlaubt CMD+. oder ESC
+                     .keyboardShortcut(.cancelAction)
                  }
              }
 
         }
         .padding()
-        .frame(minWidth: 450, idealWidth: 500, minHeight: 300) // Größe für Einstellungsfenster
+        .frame(minWidth: 450, idealWidth: 500, minHeight: 300)
         .onAppear {
-            // Stelle sicher, dass die angezeigten Werte aktuell sind
+            // Werte beim Erscheinen/Aktualisieren der View neu laden
             currentToken = KeychainService.shared.loadToken() ?? ""
-            apiBaseURL = APIService.shared.baseURL?.absoluteString ?? "" // Lade aktuelle URL
+            apiBaseURL = APIService.shared.currentBaseURLString ?? "" // Korrekter Lesezugriff
+            isApiTokenSet = !currentToken.isEmpty && !apiBaseURL.isEmpty // Update Status
         }
     }
 
+    // Korrigierte Speicherfunktion
     func saveSettings() {
-        guard let url = URL(string: apiBaseURL), !newToken.isEmpty else {
-            saveMessage = "Bitte gültige URL und Token eingeben."
+        let cleanedUrlString = apiBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Prüfe die URL *bevor* sie gesetzt wird
+        guard let url = URL(string: cleanedUrlString), !cleanedUrlString.isEmpty, cleanedUrlString.lowercased().starts(with: "http") else {
+            saveMessage = "Bitte eine gültige Basis-URL eingeben (muss mit http:// oder https:// beginnen)."
             messageColor = .red
             return
         }
-        APIService.shared.setBaseURL(urlString: apiBaseURL) // Speichere URL im Service
+        // Prüfe den Token
+        guard !newToken.isEmpty else {
+             saveMessage = "Bitte einen API Token eingeben."
+             messageColor = .red
+             return
+        }
 
+        // Setze die URL im Service
+        APIService.shared.setBaseURL(urlString: cleanedUrlString)
+
+        // Speichere den Token
         let success = KeychainService.shared.saveToken(newToken)
         if success {
-            currentToken = newToken // Aktualisiere Anzeige (maskiert)
-            isApiTokenSet = true // Informiere die App, dass Token jetzt da ist
-            saveMessage = "Token & URL gespeichert!"
+            currentToken = newToken
+            isApiTokenSet = true // Wichtig: Status aktualisieren
+            saveMessage = "Token & URL gespeichert! App ggf. neu starten oder Hauptfenster neu laden."
             messageColor = .green
             newToken = "" // Feld leeren
-            if forceShow == false { // Nur automatisch schließen, wenn es das normale Einstellungsfenster ist
-                dismiss()
+            if forceShow == false {
+                // Kurze Pause geben, damit Nutzer die Nachricht sieht? Oder direkt schließen.
+                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                      dismiss()
+                 }
             }
         } else {
             saveMessage = "Fehler beim Speichern des Tokens im Schlüsselbund."
             messageColor = .red
+            // isApiTokenSet bleibt unverändert oder false? Eher unverändert lassen.
         }
     }
 
+    // deleteToken Funktion bleibt wie zuvor
     func deleteToken() {
         let success = KeychainService.shared.deleteToken()
          if success {
              currentToken = ""
              newToken = ""
-             isApiTokenSet = false // Informiere die App
+             isApiTokenSet = false // Wichtig: Status aktualisieren
              saveMessage = "Token erfolgreich gelöscht."
              messageColor = .green
          } else {
@@ -129,8 +147,8 @@ struct SettingsView: View {
     }
 }
 
+// Preview bleibt wie zuvor
 struct SettingsView_Previews: PreviewProvider {
-    // Statisches Binding für die Vorschau
     @State static var tokenSet = false
     static var previews: some View {
         SettingsView(isApiTokenSet: $tokenSet)
