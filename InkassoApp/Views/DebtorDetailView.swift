@@ -16,7 +16,10 @@ struct DebtorDetailView: View {
             if viewModel.isLoading && viewModel.debtor == nil {
                  ProgressView("Lade Schuldner...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let _ = viewModel.debtor { // Nur Form anzeigen, wenn Debtor geladen ist
+            } else if let error = viewModel.errorMessage, viewModel.showingAlert {
+                 VStack { Text("Fehler").font(.headline); Text(error).foregroundColor(.red); Button("Erneut laden") { Task { await viewModel.loadDebtor() } }.padding(.top) }
+                 .padding().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if viewModel.debtor != nil { // Formular nur anzeigen wenn Debtor geladen ist
                 Form {
                     // Verwende die aufgeteilten Sektionen
                     basicDataSection()
@@ -25,19 +28,20 @@ struct DebtorDetailView: View {
                     notesSection()
                     systemSection() // Verwendet jetzt viewModel.isNewDebtor
                 }
-                .disabled(viewModel.isLoading && viewModel.hasChanges) // Deaktiviere nur beim Speichern
+                .disabled(viewModel.isLoading && viewModel.hasChanges)
                 .overlay { if viewModel.isLoading && viewModel.hasChanges { ProgressView("Speichern...") } }
-            } else if let error = viewModel.errorMessage {
-                 VStack { Text("Fehler").font(.headline); Text(error).foregroundColor(.red); Button("Erneut laden") { Task { await viewModel.loadDebtor() } }.padding(.top) }
-                 .padding().frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else { Text("Schuldnerdaten nicht verfügbar.") }
+            } else {
+                 Text("Schuldnerdaten nicht verfügbar.")
+                 .foregroundColor(.secondary)
+                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .padding()
-        .navigationTitle(viewModel.debtor == nil ? "Lade..." : (viewModel.isNewDebtor ? "Neuer Schuldner?" : (viewModel.hasChanges ? "Bearbeiten: " : "") + (viewModel.debtor!.name.isEmpty ? "Unbenannt" : viewModel.debtor!.name)))
+        .navigationTitle(viewModel.debtor == nil ? "Lade..." : (viewModel.debtor!.name.isEmpty && viewModel.originalDebtor == nil ? "Schuldner Bearbeiten" : (viewModel.hasChanges ? "Bearbeiten: " : "") + (viewModel.debtor!.name.isEmpty ? "Unbenannt" : viewModel.debtor!.name)))
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                  Button(viewModel.hasChanges ? "Änderungen verwerfen" : "Schließen") { if viewModel.hasChanges { viewModel.resetChanges() }; dismiss() }
-                 .disabled(viewModel.isLoading && viewModel.hasChanges) // Deaktiviere während Speichern
+                 .disabled(viewModel.isLoading && viewModel.hasChanges)
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Speichern") { Task { let success = await viewModel.saveDebtor() } }
@@ -48,70 +52,69 @@ struct DebtorDetailView: View {
         .alert(viewModel.errorMessage == nil ? "Info" : "Fehler", isPresented: $viewModel.showingAlert, presenting: viewModel.errorMessage ?? "Aktion erfolgreich.") { _ in Button("OK"){ viewModel.errorMessage = nil } } message: { messageText in Text(messageText) }
     }
 
-    // --- Aufgeteilte Sektionen mit korrekten Modifiern ---
+    // --- Aufgeteilte Sektionen mit korrekten Bindings ---
     @ViewBuilder
     private func basicDataSection() -> some View {
-        if viewModel.debtor != nil {
-            Section("Stammdaten") {
-                TextField("Name:", text: $viewModel.debtor.bound.name)
-                    .textFieldStyle(.roundedBorder) // Optional: Stil explizit setzen
-                Picker("Typ:", selection: $viewModel.debtor.bound.debtorType) {
-                    Text("Privat").tag("private")
-                    Text("Firma").tag("business")
-                }
-                .pickerStyle(.segmented).frame(maxWidth: 150)
+        // Verwende map-Helper für Binding an Properties des optionalen debtor
+        Section("Stammdaten") {
+            TextField("Name:", text: $viewModel.debtor.map(keyPath: \.name, defaultValue: ""))
+                .textFieldStyle(.roundedBorder)
+            Picker("Typ:", selection: $viewModel.debtor.map(keyPath: \.debtorType, defaultValue: "private")) {
+                Text("Privat").tag("private")
+                Text("Firma").tag("business")
             }
+            .pickerStyle(.segmented).frame(maxWidth: 150)
         }
+        // Deaktiviere Section, wenn debtor noch nil ist (sollte nicht passieren wegen äußerem if)
+        .disabled(viewModel.debtor == nil)
     }
 
      @ViewBuilder
      private func contactSection() -> some View {
-         if viewModel.debtor != nil {
-            Section("Kontakt") {
-                 TextField("E-Mail:", text: $viewModel.debtor.bound.email.withDefault(""))
-                      .textFieldStyle(.roundedBorder) // Korrekt hier
-                      .keyboardType(.emailAddress)    // Korrekt hier
-                      .autocapitalization(.none)    // Korrekt hier
-                 TextField("Telefon:", text: $viewModel.debtor.bound.phone.withDefault(""))
-                      .textFieldStyle(.roundedBorder) // Korrekt hier
-                     .keyboardType(.phonePad)      // Korrekt hier
-            }
-         }
+         Section("Kontakt") {
+             // Verwende withDefault-Helper für optionale Strings
+             TextField("E-Mail:", text: $viewModel.debtor.map(keyPath: \.email, defaultValue: nil).withDefault(""))
+                  .textFieldStyle(.roundedBorder)
+                  .keyboardType(.emailAddress) // Korrekt hier
+                  .autocapitalization(.none)   // Korrekt hier
+             TextField("Telefon:", text: $viewModel.debtor.map(keyPath: \.phone, defaultValue: nil).withDefault(""))
+                  .textFieldStyle(.roundedBorder)
+                  .keyboardType(.phonePad) // Korrekt hier
+        }
+        .disabled(viewModel.debtor == nil)
      }
 
     @ViewBuilder
      private func addressSection() -> some View {
-         if viewModel.debtor != nil {
-            Section("Adresse") {
-                 TextField("Straße:", text: $viewModel.debtor.bound.addressStreet.withDefault(""))
-                    .textFieldStyle(.roundedBorder)
-                 TextField("PLZ:", text: $viewModel.debtor.bound.addressZip.withDefault(""))
-                    .textFieldStyle(.roundedBorder)
-                    .keyboardType(.numberPad) // Korrekt hier
-                 TextField("Stadt:", text: $viewModel.debtor.bound.addressCity.withDefault(""))
-                    .textFieldStyle(.roundedBorder)
-                 TextField("Land:", text: $viewModel.debtor.bound.addressCountry.withDefault("DE"))
-                    .textFieldStyle(.roundedBorder)
-                    .autocapitalization(.allCharacters) // Korrekt hier
-            }
-         }
+         Section("Adresse") {
+             TextField("Straße:", text: $viewModel.debtor.map(keyPath: \.addressStreet, defaultValue: nil).withDefault(""))
+                .textFieldStyle(.roundedBorder)
+             TextField("PLZ:", text: $viewModel.debtor.map(keyPath: \.addressZip, defaultValue: nil).withDefault(""))
+                .textFieldStyle(.roundedBorder)
+                .keyboardType(.numberPad)
+             TextField("Stadt:", text: $viewModel.debtor.map(keyPath: \.addressCity, defaultValue: nil).withDefault(""))
+                .textFieldStyle(.roundedBorder)
+             TextField("Land:", text: $viewModel.debtor.map(keyPath: \.addressCountry, defaultValue: nil).withDefault("DE"))
+                 .textFieldStyle(.roundedBorder)
+                 .autocapitalization(.allCharacters)
+        }
+        .disabled(viewModel.debtor == nil)
     }
 
      @ViewBuilder
      private func notesSection() -> some View {
-         if viewModel.debtor != nil {
-            Section("Notizen") {
-                 TextEditor(text: $viewModel.debtor.bound.notes.withDefault(""))
-                 .frame(minHeight: 80, maxHeight: 200)
-                 .border(Color.secondary.opacity(0.5)) // Besser als cornerRadius für TextEditor manchmal
-            }
-         }
+         Section("Notizen") {
+             TextEditor(text: $viewModel.debtor.map(keyPath: \.notes, defaultValue: nil).withDefault(""))
+             .frame(minHeight: 80, maxHeight: 200)
+             .border(Color.secondary.opacity(0.5))
+             .cornerRadius(5) // CornerRadius nach Border kann komisch aussehen, evtl. weglassen
+        }
+        .disabled(viewModel.debtor == nil)
      }
 
      @ViewBuilder
      private func systemSection() -> some View {
-         // Zeige nur, wenn Debtor *geladen* wurde (also nicht neu ist)
-         // Verwende die neue Computed Property vom ViewModel
+         // Verwende viewModel.isNewDebtor wie zuvor
          if !viewModel.isNewDebtor, let debtor = viewModel.debtor {
              Section("System") {
                  Text("ID: \(debtor.id)").font(.caption).foregroundColor(.secondary)
@@ -122,10 +125,13 @@ struct DebtorDetailView: View {
      }
 }
 
-// --- Binding Helper (bleiben unverändert) ---
-extension Binding where Value == String? { func withDefault(_ defaultValue: String) -> Binding<String> { /* ... */ } }
-extension Binding where Value == Debtor? { var bound: SafeDebtorBinding { /* ... */ } }
-@dynamicMemberLookup struct SafeDebtorBinding { /* ... */ }
+// --- Binding Helper müssen hier oder in Utils definiert sein ---
+// (Aus Utils/Binding+Helpers.swift hierher verschoben oder global machen)
+fileprivate extension Binding where Value == String? {
+     func withDefault(_ defaultValue: String = "") -> Binding<String> { /* ... Implementierung wie oben ... */ }
+}
+fileprivate extension Binding where Value == Debtor? {
+     func map<T>(keyPath: WritableKeyPath<Debtor, T>, defaultValue: T) -> Binding<T> { /* ... Implementierung wie oben ... */ }
+}
 
-// Preview bleibt wie zuvor
-#Preview { /* ... */ }
+#Preview { /* ... wie zuvor ... */ }
